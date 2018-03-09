@@ -16,3 +16,9 @@ mkdir -p net/wireguard
 curl -A "$USER_AGENT" -LsS "https://git.zx2c4.com/WireGuard/snapshot/WireGuard-${BASH_REMATCH[1]}.tar.xz" | tar -C "net/wireguard" -xJf - --strip-components=2 "WireGuard-${BASH_REMATCH[1]}/src"
 sed -i 's/tristate/bool/;s/default m/default y/;' net/wireguard/Kconfig
 touch net/wireguard/.check
+# Silence build warnings
+echo '' >> net/wireguard/Kbuild
+echo '# Silence warnings' >> net/wireguard/Kbuild
+echo 'EXTRA_CFLAGS += $(call cc-disable-warning, deprecated-declarations)' >> net/wireguard/Kbuild
+echo 'EXTRA_CFLAGS += $(call cc-disable-warning, macro-redefined)' >> net/wireguard/Kbuild
+echo 'EXTRA_CFLAGS += $(call cc-disable-warning, enum-conversion)' >> net/wireguard/Kbuild
