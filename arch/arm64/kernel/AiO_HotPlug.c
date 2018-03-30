@@ -218,42 +218,44 @@ static void __ref AiO_HotPlug_work(struct work_struct *work)
 	           	   cpu_up(7);
                 }
           #endif
-}
 
-void reschedule_AiO(void)
-{
-	if (!AiO.toggle)
-	   return;
-
-	cancel_delayed_work_sync(&AiO_work);
 	queue_delayed_work(AiO_wq, &AiO_work, msecs_to_jiffies(1000));
 }
 
-static void AiO_HotPlug_start(void)
+#ifdef CONFIG_SCHED_CORE_CTL
+extern void disable_core_control(bool disable);
+#endif
+static int AiO_HotPlug_start(void)
 {
+	int ret = 0;
+
 	AiO_wq = alloc_workqueue("AiO_HotPlug_wq", WQ_HIGHPRI | WQ_FREEZABLE, 0);
 	if (!AiO_wq) 
 	{
 	   pr_err("%s: Failed to allocate AiO workqueue\n", AIO_HOTPLUG);
+	   ret = -ENOMEM;
 	   goto err_out;
 	}
 
 	INIT_DELAYED_WORK(&AiO_work, AiO_HotPlug_work);
-	reschedule_AiO();
+	queue_delayed_work(AiO_wq, &AiO_work, msecs_to_jiffies(1000));
 
-	return;
+	return ret;
 
 err_out:
+#ifdef CONFIG_SCHED_CORE_CTL
+	disable_core_control(false);
+#endif
 	AiO.toggle = 0;
-	return;
+	return ret;
 }
 
 static void __ref AiO_HotPlug_stop(void)
 {
 	int cpu;
 
-	flush_workqueue(AiO_wq);
 	cancel_delayed_work_sync(&AiO_work);
+	destroy_workqueue(AiO_wq);
 
 	/* Wake-Up All the Cores */
 	for_each_possible_cpu(cpu)
@@ -286,11 +288,17 @@ static ssize_t store_toggle(struct kobject *kobj,
 	AiO.toggle = val;
 	AiO_HotPlug = AiO.toggle;
 
-	if (AiO.toggle)
+	if (AiO.toggle) {
+#ifdef CONFIG_SCHED_CORE_CTL
+	   disable_core_control(true);
+#endif
 	   AiO_HotPlug_start();
-	else
+	} else {
 	   AiO_HotPlug_stop();
-
+#ifdef CONFIG_SCHED_CORE_CTL
+	   disable_core_control(false);
+#endif
+	}
 	return count;
 }
 
@@ -314,8 +322,6 @@ static ssize_t store_cores(struct kobject *kobj,
 	   return -EINVAL;
 
 	AiO.cores = val;
-
-	reschedule_AiO();
 
 	return count;
 }
@@ -349,8 +355,6 @@ static ssize_t store_big_cores(struct kobject *kobj,
 
 	AiO.big_cores = val;
 
-	reschedule_AiO();
-
 	return count;
 }
 
@@ -374,8 +378,6 @@ static ssize_t store_LITTLE_cores(struct kobject *kobj,
 	   return -EINVAL;
 
 	AiO.LITTLE_cores = val;
-
-	reschedule_AiO();
 
 	return count;
 }
