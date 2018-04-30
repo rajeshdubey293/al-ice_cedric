@@ -17,7 +17,6 @@
 /* elementalx governor macros */
 #define DEF_FREQUENCY_UP_THRESHOLD		(90)
 #define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(20)
-#define DEF_ACTIVE_FLOOR_FREQ			(960000)
 #define MIN_SAMPLING_RATE			(10000)
 #define DEF_SAMPLING_DOWN_FACTOR		(4)
 #define MAX_SAMPLING_DOWN_FACTOR		(20)
@@ -37,7 +36,7 @@ static struct ex_governor_data {
 	unsigned int active_floor_freq;
 	unsigned int prev_load;
 } ex_data = {
-	.active_floor_freq = DEF_ACTIVE_FLOOR_FREQ,
+	.active_floor_freq = 0,
 	.prev_load = 0,
 };
 
@@ -187,6 +186,9 @@ static void ex_check_cpu(int cpu, unsigned int load)
 			max_load_freq = load * policy->cur;
 	}
 	avg_load = (ex_data.prev_load + load) >> 1;
+
+	if (ex_data.active_floor_freq == 0)
+		ex_data.active_floor_freq = policy->user_policy.min;
 
 	if (max_load_freq > up_threshold_level[1] * cur_freq) {
 		int index = get_cpu_freq_index(cur_freq, dbs_data);
@@ -457,7 +459,7 @@ static struct ex_dbs_tuners *alloc_tuners(struct cpufreq_policy *policy)
 	tuners->up_threshold = DEF_FREQUENCY_UP_THRESHOLD;
 	tuners->down_differential = DEF_FREQUENCY_DOWN_DIFFERENTIAL;
 	tuners->ignore_nice_load = 0;
-	tuners->active_floor_freq = DEF_ACTIVE_FLOOR_FREQ;
+	tuners->active_floor_freq = policy->user_policy.min;
 	tuners->sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR;
 	tuners->powersave = 0;
 
